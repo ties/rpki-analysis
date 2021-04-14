@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+jupyterlab = "*"
+pandas = "*"
+netaddr = "*"
+pytricia = "*"
+altair = "*"
+geohash2 = "*"
+maxminddb = "*"
+maxminddb-geolite2 = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
