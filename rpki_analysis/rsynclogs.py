@@ -4,17 +4,16 @@ Derived from the rsyncstats package [0], whose regex did not work with our rsync
 [0]: https://gitlab.com/resif/rsyncstats/-/tree/master
 """
 import datetime
-
-from os import access, R_OK
-from os.path import isfile
-from io import StringIO
-import geohash2
 import logging
-from geolite2 import geolite2
 import re
-from typing import List, Dict, Union
-from hashlib import sha256
 from base64 import b64encode
+from hashlib import sha256
+from os import R_OK, access
+from os.path import isfile
+from typing import Dict, List, Union
+
+import geohash2
+from geolite2 import geolite2
 
 Event = Dict[str, Union[str, Dict]]
 
@@ -59,7 +58,7 @@ def parse_log(lines: str) -> List[Event]:
     for log in lines:
         linecount += 1
         event = GLOBAL_PATTERN.search(log)
-        if event == None:
+        if event is None:
             fail_count += 1
             LOG.debug("Ignoring log at %d : %s" % (linecount, log))
             if LOG.isEnabledFor(logging.DEBUG) and fail_count > 10:
@@ -76,7 +75,7 @@ def parse_log(lines: str) -> List[Event]:
         if event_data["logtype"] == "rsync to" or event_data["logtype"] == "rsync on":
             location = georeader.get(event_data["clientip"])
             # hash location and get the city name
-            if location != None and "location" in location:
+            if location is not None and "location" in location:
                 event_data["geohash"] = geohash2.encode(
                     location["location"]["latitude"], location["location"]["longitude"]
                 )
@@ -94,7 +93,9 @@ def parse_log(lines: str) -> List[Event]:
                 "utf-8"
             )  # overcomplicated oneliner to hash the hostname
             LOG.debug("Storing event in buffer (pid %s)" % (event_data["pid"]))
-            event_data = {k: event_data[k] for k in event_data if event_data[k] != None}
+            event_data = {
+                k: event_data[k] for k in event_data if event_data[k] is not None
+            }
             events_buffer[event_data["pid"]] = event_data
             LOG.debug(event_data)
         elif event_data["logtype"] == "sent":
@@ -103,6 +104,6 @@ def parse_log(lines: str) -> List[Event]:
             try:
                 previous_data = events_buffer.pop(event_data["pid"])
                 events.append({**event_data, **previous_data})
-            except KeyError as e:
+            except KeyError:
                 LOG.debug("Event will not be accounted : " + str(event_data))
     return events

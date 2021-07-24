@@ -14,6 +14,7 @@ maxminddb = "*"
 maxminddb-geolite2 = "*"
 altair-saver = "*"
 selenium = "*"
+matplotlib = "*"
 
 [dev-packages]
 pytest = "*"
