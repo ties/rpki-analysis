@@ -56,9 +56,14 @@ class RouteOriginAuthorizationLookup:
         return set(self.lookup(prefix))
 
     def lookup(self, prefix) -> Generator[RouteOriginAuthorization, None, None]:
+        """Lookup VRPs for prefix and all less specifics."""
+        # look up the key in the trie matching the prefix
+        # (the match is a direct match or less specific)
         key = self.trie.get_key(prefix)
         while key is not None:
+            # yield **all** VRPs for the prefix match
             yield from self.trie[key]
+            # and possibly continue with the next less specific prefix match
             key = self.trie.parent(key)
 
 
