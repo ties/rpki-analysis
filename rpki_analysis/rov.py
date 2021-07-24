@@ -42,7 +42,9 @@ class RouteOriginAuthorizationLookup:
         data.apply(self.__build_trie, axis=1)
 
     def __build_trie(self, row: Series) -> None:
-        if row.prefix not in self.trie:
+        # pytricia: has_key searches for exact match, in for prefix match
+        # we want exact match.
+        if not self.trie.has_key(row.prefix):  # noqa: W601
             # Add entry
             self.trie[row.prefix] = set()
 
@@ -51,6 +53,9 @@ class RouteOriginAuthorizationLookup:
                 row.asn, row.prefix, row.maxLength, row.prefix_length
             )
         )
+
+    def __contains__(self, prefix) -> bool:
+        return prefix in self.trie
 
     def __getitem__(self, prefix) -> Set[RouteOriginAuthorization]:
         return set(self.lookup(prefix))
@@ -86,15 +91,18 @@ def rov_validity(ris_entry: Series, lookup: RouteOriginAuthorizationLookup) -> s
         #    of candidate ROAs has an asID value that matches the origin AS
         #    in the route, and
         if roa.asn == ris_entry.origin:
-            # the route's address prefix matches a
-            #    ROAIPAddress in the ROA (where "match" is defined as where the
-            #    route's address precisely matches the ROAIPAddress, or where
+            #    the route's address prefix matches a ROAIPAddress in the ROA
+            #
+            #    (where "match" is defined as where the route's address precisely
+            #    matches the ROAIPAddress, or where
+            if ris_entry.prefix == roa.prefix:
+                return "valid"
             #    the ROAIPAddress includes a maxLength element, and the route's
             #    address prefix is a more specific prefix of the ROAIPAddress,
             #    and the route's address prefix length value is less than or
             #    equal to the ROAIPAddress maxLength value), then the procedure
             #    halts with an outcome of "valid".
-            if roa.max_length and roa.max_length >= ris_entry.prefix_length:
+            elif roa.max_length and roa.max_length >= ris_entry.prefix_length:
                 return "valid"
     if roa:
         # 4. Otherwise, the procedure halts with an outcome of "invalid".

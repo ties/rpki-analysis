@@ -51,7 +51,9 @@ class RisWhoisLookup:
         )
 
     def __build_trie(self, row: Series) -> None:
-        if not row.prefix not in self.trie:
+        # pytricia: has_key searches for exact match, in for prefix match
+        # we want exact match.
+        if not self.trie.has_key(row.prefix):  # noqa: W601
             # Add entry
             self.trie[row.prefix] = set()
 
@@ -70,6 +72,9 @@ class RisWhoisLookup:
         while key is not None:
             yield from self.trie[key]
             key = self.trie.parent(key)
+
+    def __contains__(self, prefix) -> bool:
+        return prefix in self.trie
 
     def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
         return set(self.lookup(prefix))
