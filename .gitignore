@@ -1,3 +1,5 @@
 logs/
 .ipynb_checkpoints
 workbooks/geckodriver.log
+workbooks/*.csv
+workbooks/*.xlsx
