@@ -22,7 +22,7 @@ LOG.setLevel(logging.INFO)
 
 
 GLOBAL_PATTERN = re.compile(
-    r"(?P<timestamp>20[0-9][0-9]/[0-9/]+ [012][0-9]:[0-5][0-9]:[0-5][0-9]) \[(?P<pid>[0-9]+)\] "
+    r"(?P<timestamp>(19|20)[0-9][0-9]/[0-9/]+ [012][0-9]:[0-5][0-9]:[0-5][0-9]) \[(?P<pid>[0-9]+)\] "
     r"(?P<logtype>(rsync (to|on)|sent)) ((?P<sentbytes>[0-9]+) bytes\s+received (?P<receivedbytes>[0-9]+) bytes\s+total size (?P<totalbytes>[0-9]+)|"
     r"(?P<module>[-\w_]+)(?P<directory>\/\S*) from (?P<hostname>\S+) \((?P<clientip>\S+)\))"
 )

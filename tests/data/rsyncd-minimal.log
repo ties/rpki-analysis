@@ -1,0 +1,4 @@
+2023/09/07 07:47:12 [1916302] connect from host.example.org (192.168.0.230)
+2023/09/07 07:47:12 [1916302] rsync on repository/ from host.example.org (192.168.0.230)
+2023/09/07 07:47:13 [1916302] building file list
+2023/09/07 08:00:55 [1916302] sent 215687744 bytes  received 2291817 bytes  total size 204453770
