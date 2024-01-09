@@ -1,23 +1,21 @@
-import io
 import bz2
-import pytest
-
+import io
+from pathlib import Path
 from typing import TextIO
 
-from pathlib import Path
+import pytest
 
-from rpki_analysis.delegated_stats import read_file
-
+from rpki_analysis.delegated_stats import read_delegated_stats
 
 
 @pytest.fixture
 def delegated_stats_fd() -> TextIO:
     """Fixture to get delegated stats file descriptor"""
-    with bz2.open(Path("data/nro-delegated-stats.bz2", "rt")) as f:
-        return f
-    
+    with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
+        return io.StringIO(f.read())
 
-def test_delegated_stats_parsing(delegated_stats_fd: TextIO) -> None:
-    df = read_file(delegated_stats_fd)
+
+def test_delegated_stats_parsing(delegated_stats_fd: TextIO, caplog) -> None:
+    caplog.set_level("DEBUG")
+    df = read_delegated_stats(delegated_stats_fd)
     assert df.dtypes["rir"] == "category"
-
