@@ -1,5 +1,6 @@
 import bz2
 import io
+import itertools
 from pathlib import Path
 from typing import TextIO
 
@@ -19,3 +20,16 @@ def test_delegated_stats_parsing(delegated_stats_fd: TextIO, caplog) -> None:
     caplog.set_level("DEBUG")
     df = read_delegated_stats(delegated_stats_fd)
     assert df.dtypes["rir"] == "category"
+
+    data = df.groupby(["rir"]).count()
+    assert data.loc["ripencc"].country > 100000
+
+    uuid_by_rir = df[["rir", "uuid"]].drop_duplicates().groupby(["rir"]).count()
+    # RIRs in order of size
+    for (idx_lhs, rir_lhs), (idx_rhs, rir_rhs) in itertools.combinations(
+        enumerate(["iana", "afrinic", "lacnic", "apnic", "arin", "ripencc"]), 2
+    ):
+        if idx_lhs < idx_rhs:
+            assert uuid_by_rir.loc[rir_lhs].uuid < uuid_by_rir.loc[rir_rhs].uuid
+        else:
+            assert uuid_by_rir.loc[rir_lhs].uuid >= uuid_by_rir.loc[rir_rhs].uuid
