@@ -1,10 +1,8 @@
 import logging
 from typing import Generator, NamedTuple, Optional, Set
 
-import altair as alt
 import pandas as pd
 import pytricia
-import requests
 from pandas.core.series import Series
 
 LOG = logging.getLogger(__name__)
