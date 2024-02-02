@@ -21,7 +21,12 @@ class DelegatedStatsEntry:
     length: int
     date: datetime.date
     status: str
-    uuid: str
+    """
+    For APNIC:
+      * NIR subaccounts have IDs that begin with A92
+      * all other accounts have IDs that begin with A91
+    """
+    opaque_id: str
     category: str
     resource: netaddr.IPNetwork | str
 
@@ -29,6 +34,7 @@ class DelegatedStatsEntry:
 @dataclass
 class CombinedEntry:
     rir: str
+    opaque_id: str
     entries: List[DelegatedStatsEntry]
     resource: netaddr.IPRange
 
@@ -64,7 +70,7 @@ def read_delegated_stats(f: TextIO) -> pd.DataFrame:
             "length",
             "date",
             "status",
-            "uuid",
+            "opaque_id",
             "category",
         ],
         dtype={
@@ -75,7 +81,7 @@ def read_delegated_stats(f: TextIO) -> pd.DataFrame:
             "length": int,
             "date": str,
             "status": "category",
-            "uuid": str,
+            "opaque_id": str,
             "category": "category",
         },
     )
@@ -130,17 +136,22 @@ class PytriciaLookup[V]:
             case _:
                 return self.trie4 if "." in prefix else self.trie6
 
-    def get(self, prefix: PrefixType) -> V:
+    def get(self, prefix: PrefixType, default=None) -> V:
+        """Get the value and default to None"""
         lookup = self.__trie(prefix)
 
         res = lookup[str(prefix)]
         if res is None:
-            raise KeyError(prefix)
-
+            return default
         return res
 
     def __getitem__(self, prefix: PrefixType) -> V:
-        return self.get(prefix)
+        res = self.__trie(prefix)[str(prefix)]
+
+        if res is None:
+            raise KeyError(prefix)
+
+        return res
 
     def children(self, prefix: PrefixType) -> Generator[V, None, None]:
         """Recursively get all children of a prefix"""
@@ -171,6 +182,19 @@ class StatsEntryLookup(PytriciaLookup[DelegatedStatsEntry]):
 
     def __init__(self, data: pd.DataFrame) -> None:
         super().__init__()
+        assert set(data.keys()) >= set(
+            [
+                "rir",
+                "country",
+                "afi",
+                "length",
+                "date",
+                "status",
+                "opaque_id",
+                "category",
+                "resource",
+            ]
+        )
         data[data.afi != "asn"].apply(self.__build_trie, axis=1)
 
     def __build_trie(self, row: pd.Series) -> None:
@@ -184,7 +208,7 @@ class StatsEntryLookup(PytriciaLookup[DelegatedStatsEntry]):
             length=row.length,
             date=row.date,
             status=row.status,
-            uuid=row.uuid,
+            opaque_id=row.opaque_id,
             category=row.category,
             resource=row.resource,
         )
@@ -206,26 +230,31 @@ class StatsCombinedAllocations(PytriciaLookup[CombinedEntry]):
 
     def __init__(self, data: pd.DataFrame) -> None:
         super().__init__()
-        data[data.afi != "asn"].groupby(["uuid", "afi"]).apply(self.__build_trie)
+        assert set(data.keys()) >= set(
+            [
+                "rir",
+                "country",
+                "afi",
+                "length",
+                "date",
+                "status",
+                "opaque_id",
+                "category",
+                "resource",
+            ]
+        )
+        data[data.afi != "asn"].groupby(["opaque_id", "afi", "rir"]).apply(
+            self.__build_trie
+        )
 
     def __build_trie(self, rows: pd.Series) -> None:
-        # pytricia: has_key searches for exact match, in for prefix match
-        # we want exact match.
+        """Build trie entries for the groups of rows.
 
-        records = [
-            DelegatedStatsEntry(
-                rir=row.rir,
-                country=row.country,
-                afi=row.afi,
-                length=row.length,
-                date=row.date,
-                status=row.status,
-                uuid=row.uuid,
-                category=row.category,
-                resource=row.resource,
-            )
-            for _, row in rows.iterrows()
-        ]
+        @precondition grouped by opaque_id, afi, rir.
+        """
+        opaque_ids = rows.opaque_id.unique()
+        assert len(opaque_ids) == 1
+        opaque_id = opaque_ids[0]
 
         afis = rows.afi.unique()
         assert len(afis) == 1
@@ -235,12 +264,73 @@ class StatsCombinedAllocations(PytriciaLookup[CombinedEntry]):
         assert len(rirs) == 1
         rir = rirs[0]
 
+        records = [
+            DelegatedStatsEntry(
+                rir=row.rir,
+                country=row.country,
+                afi=row.afi,
+                length=row.length,
+                date=row.date,
+                status=row.status,
+                opaque_id=row.opaque_id,
+                category=row.category,
+                resource=row.resource,
+            )
+            for _, row in rows.iterrows()
+        ]
+
         resources = netaddr.IPSet([entry.resource for entry in records])
         for cidr in resources.iter_cidrs():
-            combined = CombinedEntry(rir=rir, entries=records, resource=cidr)
+            combined = CombinedEntry(
+                rir=rir, opaque_id=opaque_id, entries=records, resource=cidr
+            )
             if afi == "ipv4":
                 self.trie4[str(cidr)] = combined
             elif afi == "ipv6":
                 self.trie6[str(cidr)] = combined
+            else:
+                raise ValueError()
+
+
+class RirLookup(PytriciaLookup[str]):
+    """
+    Just find the RIR responsible for the range
+    """
+
+    def __init__(self, data: pd.DataFrame) -> None:
+        super().__init__()
+        assert set(data.keys()) >= set(
+            [
+                "rir",
+                "country",
+                "afi",
+                "length",
+                "date",
+                "status",
+                "opaque_id",
+                "category",
+                "resource",
+            ]
+        )
+        data[data.afi != "asn"].groupby(["afi", "rir"]).apply(self.__build_trie)
+
+    def __build_trie(self, rows: pd.Series) -> None:
+        """Build trie entries for the groups of rows.
+        @precondition grouped by opaque_id, afi, rir.
+        """
+        afis = rows.afi.unique()
+        assert len(afis) == 1
+        afi = afis[0]
+
+        rirs = rows.rir.unique()
+        assert len(rirs) == 1
+        rir = rirs[0]
+
+        cidrs = netaddr.cidr_merge([row.resource for (_, row) in rows.iterrows()])
+        for cidr in cidrs:
+            if afi == "ipv4":
+                self.trie4[str(cidr)] = rir
+            elif afi == "ipv6":
+                self.trie6[str(cidr)] = rir
             else:
                 raise ValueError()
