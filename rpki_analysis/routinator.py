@@ -1,26 +1,34 @@
 import io
+from collections.abc import Buffer
 from typing import Generator
 
 import aiohttp
 import pandas as pd
 
 
-async def read_csvext(url: str) -> pd.DataFrame:
+def read_csvext(buffer: Buffer) -> pd.DataFrame:
+    """Read routinator csvext output into a dataframe"""
+    return (
+        pd.read_csv(buffer)
+        .rename(
+            columns={
+                "URI": "uri",
+                "ASN": "asn",
+                "IP Prefix": "prefix",
+                "Max Length": "max_length",
+                "Not Before": "not_before",
+                "Not After": "not_after",
+            }
+        )
+        .astype({"max_length": int})
+    )
+
+
+async def read_csvext_url(url: str) -> pd.DataFrame:
     """Read routinator's csvext format"""
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
-            print(resp.status)
-            df = pd.read_csv(io.BytesIO(await resp.read())).rename(
-                columns={
-                    "URI": "uri",
-                    "ASN": "asn",
-                    "IP Prefix": "prefix",
-                    "Max Length": "max_length",
-                    "Not Before": "not_before",
-                    "Not After": "not_after",
-                }
-            )
-        return df
+            return read_csvext(io.BytesIO(await resp.read()))
 
 
 async def read_jsonext_generator(url: str) -> Generator[object, None, None]:
@@ -50,4 +58,4 @@ async def read_jsonext(url: str) -> pd.DataFrame:
         columns={
             "maxLength": "max_length",
         }
-    )
+    ).astype({"max_length": int})

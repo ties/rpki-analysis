@@ -1,12 +1,33 @@
+import ipaddress
 import logging
-from typing import Generator, NamedTuple, Optional, Set
+from typing import Generator, Literal, NamedTuple, Optional, Protocol, Set, Union
 
+import netaddr
 import pandas as pd
 import pytricia
 from pandas.core.series import Series
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.DEBUG)
+
+
+PrefixType = Union[str, ipaddress.IPv4Network, ipaddress.IPv6Network, netaddr.IPNetwork]
+
+
+class ValidatedRoaPayload(Protocol):
+    """The shape of a VRP."""
+
+    asn: str
+    prefix: str
+    max_length: Optional[int] = None
+
+
+class Announcement(Protocol):
+    """The shape of a BGP announcement (or RIS entry)."""
+
+    prefix: str
+    origin: str
+    prefix_length: int
 
 
 class RouteOriginAuthorization(NamedTuple):
@@ -30,79 +51,96 @@ class RouteOriginAuthorizationLookup:
     followed by looking up the parents.
     """
 
-    trie: pytricia.PyTricia
+    trie4: pytricia.PyTricia
+    trie6: pytricia.PyTricia
 
     def __init__(self, data: pd.DataFrame) -> None:
-        assert data.af.nunique() == 1
-        length = 128 if data.af.unique()[0] == 6 else 32
+        # expected columns
+        assert set(data.keys()) >= set(["asn", "prefix", "max_length"])
 
-        self.trie = pytricia.PyTricia(length)
+        self.trie4 = pytricia.PyTricia(32)
+        self.trie6 = pytricia.PyTricia(128)
+
         data.apply(self.__build_trie, axis=1)
 
-    def __build_trie(self, row: Series) -> None:
+    def __trie(self, prefix: str) -> pytricia.PyTricia:
+        return self.trie4 if ":" not in prefix else self.trie6
+
+    def __build_trie(self, row: ValidatedRoaPayload) -> None:
         # pytricia: has_key searches for exact match, in for prefix match
         # we want exact match.
-        if not self.trie.has_key(row.prefix):  # noqa: W601
-            # Add entry
-            self.trie[row.prefix] = set()
+        assert isinstance(row.prefix, str)
+        trie = self.__trie(row.prefix)
 
-        self.trie[row.prefix].add(
+        if not trie.has_key(row.prefix):  # noqa: W601
+            # Add entry
+            trie[row.prefix] = set()
+
+        trie[row.prefix].add(
             RouteOriginAuthorization(
-                row.asn, row.prefix, row.maxLength, row.prefix_length
+                row.asn, row.prefix, row.max_length, getattr(row, "prefix_length", None)
             )
         )
 
-    def __contains__(self, prefix) -> bool:
-        return prefix in self.trie
+    def __contains__(self, prefix: PrefixType) -> bool:
+        return prefix in self.__trie(str(prefix))
 
-    def __getitem__(self, prefix) -> Set[RouteOriginAuthorization]:
-        return set(self.lookup(prefix))
+    def __getitem__(self, prefix: PrefixType) -> Set[RouteOriginAuthorization]:
+        return set(self.lookup(str(prefix)))
 
-    def lookup(self, prefix) -> Generator[RouteOriginAuthorization, None, None]:
+    def lookup(
+        self, prefix: PrefixType
+    ) -> Generator[RouteOriginAuthorization, None, None]:
         """Lookup VRPs for prefix and all less specifics."""
         # look up the key in the trie matching the prefix
         # (the match is a direct match or less specific)
-        key = self.trie.get_key(prefix)
+        prefix = str(prefix)
+        trie = self.__trie(prefix)
+
+        key = trie.get_key(prefix)
         while key is not None:
             # yield **all** VRPs for the prefix match
-            yield from self.trie[key]
+            yield from trie[key]
             # and possibly continue with the next less specific prefix match
-            key = self.trie.parent(key)
+            key = trie.parent(key)
 
 
-def rov_validity(ris_entry: Series, lookup: RouteOriginAuthorizationLookup) -> str:
+def rov_validity(
+    announcement: Announcement, lookup: RouteOriginAuthorizationLookup
+) -> Literal["valid", "invalid", "unknown"]:
     """
     Determine ROA validation outcome for an entry.
 
     Algorithm from `RFC6483 section 2 <https://tools.ietf.org/html/rfc6483#section-2>`_.
     """
+    prefix = ipaddress.ip_network(announcement.prefix)
     # A route validity state is defined by the following procedure:
     #
     # 1. Select all valid ROAs that include a ROAIPAddress value that
     #    either matches, or is a covering aggregate of, the address
     #    prefix in the route.  This selection forms the set of
     #    "candidate ROAs".
-    roa = None
+    vrp: Optional[RouteOriginAuthorization] = None
     # Lookup only returns objects that have a identical or less specific prefix.
-    for roa in lookup.lookup(ris_entry.prefix):
+    for vrp in lookup.lookup(announcement.prefix):
         # 3. If the route's origin AS can be determined and any of the set
         #    of candidate ROAs has an asID value that matches the origin AS
         #    in the route, and
-        if roa.asn == ris_entry.origin:
+        if vrp.asn == announcement.origin:
             #    the route's address prefix matches a ROAIPAddress in the ROA
             #
             #    (where "match" is defined as where the route's address precisely
             #    matches the ROAIPAddress, or where
-            if ris_entry.prefix == roa.prefix:
+            if announcement.prefix == vrp.prefix:
                 return "valid"
             #    the ROAIPAddress includes a maxLength element, and the route's
             #    address prefix is a more specific prefix of the ROAIPAddress,
             #    and the route's address prefix length value is less than or
             #    equal to the ROAIPAddress maxLength value), then the procedure
             #    halts with an outcome of "valid".
-            elif roa.max_length and roa.max_length >= ris_entry.prefix_length:
+            elif vrp.max_length and vrp.max_length >= prefix.prefixlen:
                 return "valid"
-    if roa:
+    if vrp:
         # 4. Otherwise, the procedure halts with an outcome of "invalid".
         return "invalid"
     else:
@@ -113,36 +151,40 @@ def rov_validity(ris_entry: Series, lookup: RouteOriginAuthorizationLookup) -> s
 
 
 def rov_validity_verbose(
-    ris_entry: Series, lookup: RouteOriginAuthorizationLookup
+    announcement: Announcement, lookup: RouteOriginAuthorizationLookup
 ) -> str:
     """Verbose version of roa_validity function."""
     # Match roas, to match, they need to:
     # * have the same AS as the ROA
     # * have a prefix length <= maxLength
-    roas = lookup[ris_entry.prefix]
+    roas = lookup[announcement.prefix]
     if not roas:
         return "unknown"
     was_valid = False
     for roa in roas:
         print(roa)
-        if roa.asn != ris_entry.origin:
+        if roa.asn != announcement.origin:
             LOG.info(
                 "invalid as: %s ris origin: %d for %s",
                 roa,
-                ris_entry.origin,
-                ris_entry.prefix,
+                announcement.origin,
+                announcement.prefix,
             )
         else:
-            assert roa.prefix_length <= ris_entry.prefix_length
-            if roa.max_length >= ris_entry.prefix_length:
+            assert roa.prefix_length <= announcement.prefix_length
+            if roa.max_length >= announcement.prefix_length:
                 LOG.info(
                     "valid roa: %s for %s announced by %s",
                     roa,
-                    ris_entry.prefix,
-                    ris_entry.origin,
+                    announcement.prefix,
+                    announcement.origin,
                 )
                 was_valid = True
             else:
-                LOG.info("invalid length: %s does not match %s", ris_entry.prefix)
+                LOG.info(
+                    "invalid length: %s does not match %d",
+                    announcement.prefix,
+                    roa.max_length,
+                )
 
     return "valid" if was_valid else "invalid"

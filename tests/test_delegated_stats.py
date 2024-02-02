@@ -25,7 +25,9 @@ def df_delegated_stats() -> pd.DataFrame:
         return read_delegated_stats(data)
 
 
-def test_delegated_stats_parsing(df_delegated_stats: pd.DataFrame, caplog) -> None:
+def test_delegated_stats_parsing(
+    df_delegated_stats: pd.DataFrame, caplog
+) -> None:  # pylint: disable=redefined-outer-name
     df = df_delegated_stats
     caplog.set_level("DEBUG")
     assert df.dtypes["rir"] == "category"
@@ -57,7 +59,9 @@ def test_delegated_stats_parsing(df_delegated_stats: pd.DataFrame, caplog) -> No
             )
 
 
-def test_delegated_stats_lookup(df_delegated_stats: pd.DataFrame, caplog) -> None:
+def test_delegated_stats_lookup(
+    df_delegated_stats: pd.DataFrame, caplog
+) -> None:  # pylint: disable=redefined-outer-name
     caplog.set_level("DEBUG")
 
     lookup = StatsEntryLookup(df_delegated_stats)
@@ -97,7 +101,9 @@ def test_delegated_stats_lookup(df_delegated_stats: pd.DataFrame, caplog) -> Non
     assert count > 64
 
 
-def test_delegated_stats_combiner(df_delegated_stats: pd.DataFrame, caplog) -> None:
+def test_delegated_stats_combiner(
+    df_delegated_stats: pd.DataFrame, caplog
+) -> None:  # pylint: disable=redefined-outer-name
     """This shares logic with the other lookup type, there is no need to cover as many cases"""
     caplog.set_level("DEBUG")
 
@@ -117,7 +123,9 @@ def test_delegated_stats_combiner(df_delegated_stats: pd.DataFrame, caplog) -> N
     assert len(res.overlapping_entries()) == 2
 
 
-def test_rir_lookup(df_delegated_stats: pd.DataFrame, caplog) -> None:
+def test_rir_lookup(
+    df_delegated_stats: pd.DataFrame, caplog
+) -> None:  # pylint: disable=redefined-outer-name
     """This shares logic with the other lookup type, there is no need to cover as many cases"""
     caplog.set_level("DEBUG")
 
