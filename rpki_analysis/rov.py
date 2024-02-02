@@ -25,6 +25,7 @@ class ValidatedRoaPayload(Protocol):
 class Announcement(Protocol):
     """The shape of a BGP announcement (or RIS entry)."""
 
+    """The origin, without 'AS' prefix, but potentially as a AS set."""
     prefix: str
     origin: str
     prefix_length: int
@@ -57,6 +58,8 @@ class RouteOriginAuthorizationLookup:
     def __init__(self, data: pd.DataFrame) -> None:
         # expected columns
         assert set(data.keys()) >= set(["asn", "prefix", "max_length"])
+        # We use asn as a int to avoid the "AS" prefix
+        assert data.asn.dtype == int
 
         self.trie4 = pytricia.PyTricia(32)
         self.trie6 = pytricia.PyTricia(128)
@@ -126,7 +129,9 @@ def rov_validity(
         # 3. If the route's origin AS can be determined and any of the set
         #    of candidate ROAs has an asID value that matches the origin AS
         #    in the route, and
-        if vrp.asn == announcement.origin:
+
+        # announcement entries may have a string origin, but the lookup has int
+        if str(vrp.asn) == str(announcement.origin):
             #    the route's address prefix matches a ROAIPAddress in the ROA
             #
             #    (where "match" is defined as where the route's address precisely

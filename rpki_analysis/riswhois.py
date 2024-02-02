@@ -11,6 +11,8 @@ LOG.setLevel(logging.DEBUG)
 
 
 class ExpandedRisEntry(NamedTuple):
+    """Because this can contain AS sets (e.g. {12703}), origins are strings."""
+
     origin: str
     prefix: str
     seen_by_peers: int

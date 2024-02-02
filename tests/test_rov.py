@@ -33,7 +33,7 @@ def test_roa_lookup(df_csvext: pd.DataFrame):  # pylint: disable=redefined-outer
 
     # Exact match
     as3333_vrps = set(
-        [RouteOriginAuthorization(asn="AS3333", prefix="193.0.0.0/21", max_length=21)]
+        [RouteOriginAuthorization(asn=3333, prefix="193.0.0.0/21", max_length=21)]
     )
 
     assert lookup["193.0.0.0/21"] == as3333_vrps
@@ -49,9 +49,9 @@ def test_roa_lookup(df_csvext: pd.DataFrame):  # pylint: disable=redefined-outer
     # This prefix has three VRPs:
     assert lookup["100.20.0.0/14"] == set(
         [
-            RouteOriginAuthorization("AS8987", "100.20.0.0/14", 24),
-            RouteOriginAuthorization("AS14618", "100.20.0.0/14", 24),
-            RouteOriginAuthorization("AS16509", "100.20.0.0/14", 24),
+            RouteOriginAuthorization(8987, "100.20.0.0/14", 24),
+            RouteOriginAuthorization(14618, "100.20.0.0/14", 24),
+            RouteOriginAuthorization(16509, "100.20.0.0/14", 24),
         ]
     )
 
@@ -61,23 +61,21 @@ def test_roa_validity(df_csvext: pd.DataFrame):  # pylint: disable=redefined-out
     assert df_csvext.shape[0] > 100_000
     lookup = RouteOriginAuthorizationLookup(df_csvext)
 
-    assert rov_validity(AnnouncementStub("193.0.0.0/21", "AS3333"), lookup) == "valid"
+    assert rov_validity(AnnouncementStub("193.0.0.0/21", 3333), lookup) == "valid"
     # different ASN
-    assert rov_validity(AnnouncementStub("193.0.0.0/21", "AS3334"), lookup) == "invalid"
+    assert rov_validity(AnnouncementStub("193.0.0.0/21", 3334), lookup) == "invalid"
     # more specific not allowed
-    assert rov_validity(AnnouncementStub("193.0.0.0/22", "AS3333"), lookup) == "invalid"
+    assert rov_validity(AnnouncementStub("193.0.0.0/22", 3333), lookup) == "invalid"
     # less specific is unknown
-    assert rov_validity(AnnouncementStub("193.0.0.0/16", "AS3333"), lookup) == "unknown"
+    assert rov_validity(AnnouncementStub("193.0.0.0/16", 3333), lookup) == "unknown"
 
     # Now for the cases where there are multiple VRPs for the same prefix
     # 1: all three ASNs are valid
-    assert rov_validity(AnnouncementStub("100.20.0.0/14", "AS8987"), lookup) == "valid"
-    assert rov_validity(AnnouncementStub("100.20.0.0/14", "AS14618"), lookup) == "valid"
-    assert rov_validity(AnnouncementStub("100.20.0.0/14", "AS16509"), lookup) == "valid"
+    assert rov_validity(AnnouncementStub("100.20.0.0/14", 8987), lookup) == "valid"
+    assert rov_validity(AnnouncementStub("100.20.0.0/14", 14618), lookup) == "valid"
+    assert rov_validity(AnnouncementStub("100.20.0.0/14", 16509), lookup) == "valid"
 
     # 2: more specifics within max length are allowed
-    assert rov_validity(AnnouncementStub("100.20.0.0/24", "AS16509"), lookup) == "valid"
+    assert rov_validity(AnnouncementStub("100.20.0.0/24", 16509), lookup) == "valid"
     # But > is not
-    assert (
-        rov_validity(AnnouncementStub("100.20.0.0/25", "AS16509"), lookup) == "invalid"
-    )
+    assert rov_validity(AnnouncementStub("100.20.0.0/25", 16509), lookup) == "invalid"

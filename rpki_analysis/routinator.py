@@ -8,20 +8,19 @@ import pandas as pd
 
 def read_csvext(buffer: Buffer) -> pd.DataFrame:
     """Read routinator csvext output into a dataframe"""
-    return (
-        pd.read_csv(buffer)
-        .rename(
-            columns={
-                "URI": "uri",
-                "ASN": "asn",
-                "IP Prefix": "prefix",
-                "Max Length": "max_length",
-                "Not Before": "not_before",
-                "Not After": "not_after",
-            }
-        )
-        .astype({"max_length": int})
+    df = pd.read_csv(buffer).rename(
+        columns={
+            "URI": "uri",
+            "ASN": "asn",
+            "IP Prefix": "prefix",
+            "Max Length": "max_length",
+            "Not Before": "not_before",
+            "Not After": "not_after",
+        }
     )
+    df["asn"] = df["asn"].str.replace("AS", "")
+
+    return df.astype({"asn": int, "max_length": int})
 
 
 async def read_csvext_url(url: str) -> pd.DataFrame:
@@ -54,8 +53,9 @@ async def read_jsonext_generator(url: str) -> Generator[object, None, None]:
 async def read_jsonext(url: str) -> pd.DataFrame:
     """Read routinator's jsonext format"""
     df = pd.json_normalize([i async for i in read_jsonext_generator(url)])
+    df["asn"] = df["asn"].str.replace("AS", "")
     return df.rename(
         columns={
             "maxLength": "max_length",
         }
-    ).astype({"max_length": int})
+    ).astype({"asn": int, "max_length": int})
