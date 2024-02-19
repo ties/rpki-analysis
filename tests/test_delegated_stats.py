@@ -12,7 +12,7 @@ from rpki_analysis.delegated_stats import (
     RirLookup,
     StatsCombinedAllocations,
     StatsEntryLookup,
-    read_delegated_stats,
+    read_delegated_extended_stats,
 )
 
 
@@ -22,7 +22,7 @@ def df_delegated_stats() -> pd.DataFrame:
     with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
         data = io.StringIO(f.read())
 
-        return read_delegated_stats(data)
+        return read_delegated_extended_stats(data)
 
 
 def test_delegated_stats_parsing(

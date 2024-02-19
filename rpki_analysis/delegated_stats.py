@@ -12,9 +12,11 @@ LOG = logging.getLogger(__name__)
 
 PrefixType = str | netaddr.IPNetwork | ipaddress.IPv4Network | ipaddress.IPv6Network
 
+V = TypeVar("V")
+
 
 @dataclass
-class DelegatedStatsEntry:
+class DelegatedExtendedStatsEntry:
     rir: str
     country: str
     afi: str
@@ -35,10 +37,10 @@ class DelegatedStatsEntry:
 class CombinedEntry:
     rir: str
     opaque_id: str
-    entries: List[DelegatedStatsEntry]
+    entries: List[DelegatedExtendedStatsEntry]
     resource: netaddr.IPRange
 
-    def overlapping_entries(self) -> List[DelegatedStatsEntry]:
+    def overlapping_entries(self) -> List[DelegatedExtendedStatsEntry]:
         return [entry for entry in self.entries if entry.resource in self.resource]
 
 
@@ -56,7 +58,7 @@ def extract_resource(row) -> netaddr.IPNetwork | str:
             raise ValueError()
 
 
-def read_delegated_stats(f: TextIO) -> pd.DataFrame:
+def read_delegated_extended_stats(f: TextIO) -> pd.DataFrame:
     """Parse a delegated stats file into a dataframe"""
     df_delegated_extended = pd.read_csv(
         f,
@@ -100,7 +102,38 @@ def read_delegated_stats(f: TextIO) -> pd.DataFrame:
     return df_delegated_extended
 
 
-V = TypeVar("V")
+def read_delegated_stats(f: TextIO) -> pd.DataFrame:
+    """Parse a delegated stats file into a dataframe"""
+    df_delegated = pd.read_csv(
+        f,
+        sep="|",
+        skiprows=4,
+        names=[
+            "rir",
+            "country",
+            "afi",
+            "raw_resource",
+            "length",
+            "date",
+            "status",
+        ],
+        dtype={
+            "rir": "category",
+            "country": "category",
+            "afi": "category",
+            "raw_resource": str,
+            "length": int,
+            "date": str,
+            "status": "category",
+        },
+    )
+
+    # Fix unsupported dates
+    df_delegated.loc[df_delegated.date == "00000000", "date"] = "19700101"
+
+    df_delegated.date = pd.to_datetime(df_delegated.date, format="%Y%m%d", utc=True)
+    df_delegated["resource"] = df_delegated.apply(extract_resource, axis=1)
+    return df_delegated
 
 
 class PytriciaLookup[V]:
@@ -175,7 +208,7 @@ class PytriciaLookup[V]:
                 yield elem
 
 
-class StatsEntryLookup(PytriciaLookup[DelegatedStatsEntry]):
+class StatsEntryLookup(PytriciaLookup[DelegatedExtendedStatsEntry]):
     """
     Lookup the RIR for a given resource.
     """
@@ -201,7 +234,7 @@ class StatsEntryLookup(PytriciaLookup[DelegatedStatsEntry]):
         # pytricia: has_key searches for exact match, in for prefix match
         # we want exact match.
 
-        record = DelegatedStatsEntry(
+        record = DelegatedExtendedStatsEntry(
             rir=row.rir,
             country=row.country,
             afi=row.afi,
@@ -265,7 +298,7 @@ class StatsCombinedAllocations(PytriciaLookup[CombinedEntry]):
         rir = rirs[0]
 
         records = [
-            DelegatedStatsEntry(
+            DelegatedExtendedStatsEntry(
                 rir=row.rir,
                 country=row.country,
                 afi=row.afi,
