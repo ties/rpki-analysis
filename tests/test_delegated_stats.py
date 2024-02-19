@@ -13,11 +13,12 @@ from rpki_analysis.delegated_stats import (
     StatsCombinedAllocations,
     StatsEntryLookup,
     read_delegated_extended_stats,
+    read_delegated_stats,
 )
 
 
 @pytest.fixture(scope="module")
-def df_delegated_stats() -> pd.DataFrame:
+def df_delext_stats() -> pd.DataFrame:
     """Fixture to get delegated stats file descriptor"""
     with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
         data = io.StringIO(f.read())
@@ -25,10 +26,37 @@ def df_delegated_stats() -> pd.DataFrame:
         return read_delegated_extended_stats(data)
 
 
-def test_delegated_stats_parsing(
-    df_delegated_stats: pd.DataFrame, caplog
+def test_delegated_stats_parsing() -> None:
+    """Basic parsing of delegated stats"""
+    with bz2.open(
+        Path(__file__).parent / "data/delegated-afrinic-20240219.bz2", "rt"
+    ) as f:
+        data = io.StringIO(f.read())
+
+        df = read_delegated_stats(data)
+
+    assert df.dtypes["rir"] == "category"
+    assert len(df.rir.unique()) == 1
+
+    # contains both parsed and raw resource
+    assert set(df.keys()) <= set(
+        [
+            "rir",
+            "country",
+            "afi",
+            "resource",
+            "length",
+            "date",
+            "status",
+            "raw_resource",
+        ]
+    )
+
+
+def test_delegated_extended_stats_parsing(
+    df_delext_stats: pd.DataFrame, caplog
 ) -> None:  # pylint: disable=redefined-outer-name
-    df = df_delegated_stats
+    df = df_delext_stats
     caplog.set_level("DEBUG")
     assert df.dtypes["rir"] == "category"
 
@@ -60,11 +88,11 @@ def test_delegated_stats_parsing(
 
 
 def test_delegated_stats_lookup(
-    df_delegated_stats: pd.DataFrame, caplog
+    df_delext_stats: pd.DataFrame, caplog
 ) -> None:  # pylint: disable=redefined-outer-name
     caplog.set_level("DEBUG")
 
-    lookup = StatsEntryLookup(df_delegated_stats)
+    lookup = StatsEntryLookup(df_delext_stats)
 
     # check that the boundaries apply correctly
     assert lookup["193.0.0.0/32"].rir == "ripencc"
@@ -102,12 +130,12 @@ def test_delegated_stats_lookup(
 
 
 def test_delegated_stats_combiner(
-    df_delegated_stats: pd.DataFrame, caplog
+    df_delext_stats: pd.DataFrame, caplog
 ) -> None:  # pylint: disable=redefined-outer-name
     """This shares logic with the other lookup type, there is no need to cover as many cases"""
     caplog.set_level("DEBUG")
 
-    lookup = StatsCombinedAllocations(df_delegated_stats)
+    lookup = StatsCombinedAllocations(df_delext_stats)
 
     # a case covering multiple adjacent entries: this is merged in.
     prefix = ipaddress.ip_network("5.35.0.0/19")
@@ -124,12 +152,12 @@ def test_delegated_stats_combiner(
 
 
 def test_rir_lookup(
-    df_delegated_stats: pd.DataFrame, caplog
+    df_delext_stats: pd.DataFrame, caplog
 ) -> None:  # pylint: disable=redefined-outer-name
     """This shares logic with the other lookup type, there is no need to cover as many cases"""
     caplog.set_level("DEBUG")
 
-    lookup = RirLookup(df_delegated_stats)
+    lookup = RirLookup(df_delext_stats)
     assert lookup["145.0.0.0/9"] == "ripencc"
     assert lookup["103.73.236.0/24"] == "apnic"
     assert lookup["103.73.237.0/24"] == "apnic"
