@@ -6,6 +6,27 @@ import aiohttp
 import pandas as pd
 
 
+def read_csv(buffer: Buffer) -> pd.DataFrame:
+    """Read routinator/rpki-client csv output into a dataframe"""
+    df = pd.read_csv(buffer).rename(
+        columns={
+            "ASN": "asn",
+            "IP Prefix": "prefix",
+            "Max Length": "max_length",
+        }
+    )
+    if "Trust Anchor" in df.keys():
+        df["trust_anchor"] = df["Trust Anchor"]
+        df.drop(columns=["Trust Anchor"], inplace=True)
+    if "Expires" in df.keys():
+        df["expires"] = df["Expires"].astype(int)
+        df.drop(columns=["Expires"], inplace=True)
+
+    df["asn"] = df["asn"].str.replace("AS", "")
+
+    return df.astype({"asn": int, "max_length": int})
+
+
 def read_csvext(buffer: Buffer) -> pd.DataFrame:
     """Read routinator csvext output into a dataframe"""
     df = pd.read_csv(buffer).rename(

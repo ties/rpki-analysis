@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from rpki_analysis.routinator import read_csvext
+from rpki_analysis.routinator import read_csv, read_csvext
 from rpki_analysis.rov import (
     RouteOriginAuthorization,
     RouteOriginAuthorizationLookup,
@@ -24,6 +24,20 @@ def df_csvext() -> pd.DataFrame:
     """Fixture to get routinator csvext output."""
     with lzma.open(Path(__file__).parent / "data/routinator_csvext.csv.xz", "rt") as f:
         return read_csvext(f)
+
+
+def test_read_csv__rpki_client() -> None:
+    with lzma.open(Path(__file__).parent / "data/rpki_client_csv.csv.xz", "rt") as f:
+        df = read_csv(f)
+        assert set(["asn", "prefix", "max_length", "expires", "trust_anchor"]) == set(
+            df.keys()
+        )
+
+
+def test_read_csv__routinator() -> None:
+    with lzma.open(Path(__file__).parent / "data/routinator_csv.csv.xz", "rt") as f:
+        df = read_csv(f)
+        assert set(["asn", "prefix", "max_length", "trust_anchor"]) == set(df.keys())
 
 
 def test_roa_lookup(df_csvext: pd.DataFrame):  # pylint: disable=redefined-outer-name
