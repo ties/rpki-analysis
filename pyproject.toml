@@ -23,6 +23,7 @@ matplotlib = "^3.8.2"
 psycopg2 = "^2.9.9"
 sqlalchemy = "^2.0.29"
 pyinterval = "^1.2.0"
+pyarrow = "^18.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"

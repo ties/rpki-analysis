@@ -11,6 +11,7 @@ from rpki_analysis.rov import (
     RouteOriginAuthorizationLookup,
     rov_validity,
 )
+from rpki_analysis.rpki_client import read_dump
 
 
 @dataclasses.dataclass
@@ -38,6 +39,12 @@ def test_read_csv__routinator() -> None:
     with lzma.open(Path(__file__).parent / "data/routinator_csv.csv.xz", "rt") as f:
         df = read_csv(f)
         assert set(["asn", "prefix", "max_length", "trust_anchor"]) == set(df.keys())
+
+
+def test_read_rpki_client_dump() -> None:
+    with lzma.open(Path(__file__).parent / "data/rpki_client_dump.json.xz", "rt") as f:
+        df = read_dump(f)
+        assert set(["asn", "prefix", "max_length", "sia"]) < set(df.keys())
 
 
 def test_roa_lookup(df_csvext: pd.DataFrame):  # pylint: disable=redefined-outer-name
