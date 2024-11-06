@@ -5,4 +5,5 @@ workbooks/*.csv
 workbooks/*.xlsx
 rpki-*Z
 rpki-*.tgz
+workbooks/.tmp/
 *.parquet
