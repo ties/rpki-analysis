@@ -5,6 +5,8 @@ on: [push]
 permissions:
   checks: write
   pull-requests: write
+  # for comment
+  contents: write
 
 jobs:
   uv-example:
