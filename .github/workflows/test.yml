@@ -2,6 +2,10 @@ name: Test
 
 on: [push]
 
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   uv-example:
     name: python
@@ -23,7 +27,7 @@ jobs:
           uv run pytest -n auto --junitxml=pytest.xml --cov-branch --cov=rpki_analysis --cov-report xml:coverage.xml
 
       - name: Coverage coverage coverage report 
-        uses: MishaKav/pytest-coverage-comment@main
+        uses: MishaKav/pytest-coverage-comment@v1.1.9
         with:
           pytest-xml-coverage-path: ./coverage.xml
           junitxml-path: ./pytest.xml
