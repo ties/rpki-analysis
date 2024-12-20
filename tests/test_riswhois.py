@@ -3,7 +3,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from rpki_analysis.riswhois import ExpandedRisEntry, RisWhoisLookup, read_ris_dump
+from rpki_analysis.riswhois import (
+    ExpandedRisEntry,
+    RisWhoisLookup,
+    RisWhoisLookupMoreSpecific,
+    read_ris_dump,
+)
 
 
 @pytest.mark.parametrize(
@@ -35,3 +40,14 @@ def test_riswhois_lookup() -> None:
 
     # when you look up a less specific, a more specific is not present
     assert AS_3333_193_0_0_0_21 not in lookup["193.0.0.0/16"]
+
+
+def test_riswhois_lookup_more_specific() -> None:
+    df_v4 = read_ris_dump(Path(__file__).parent / "data/riswhoisdump.IPv4.gz")
+    lookup = RisWhoisLookupMoreSpecific(df_v4)
+
+    res = [(r.origin, r.prefix) for r in lookup["193.0.14.0/23"]]
+    assert len(res) == 3
+    assert ("25152", "193.0.14.0/23") in res
+    assert ("25152", "193.0.14.0/24") in res
+    assert ("25152", "193.0.15.0/24") in res

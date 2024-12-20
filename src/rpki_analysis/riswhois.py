@@ -78,3 +78,58 @@ class RisWhoisLookup:
 
     def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
         return set(self.lookup(prefix))
+
+
+class RisWhoisLookupMoreSpecific:
+    """Lookup more or equally specific elements."""
+
+    trie: pytricia.PyTricia
+
+    def __init__(self, data: pd.DataFrame, visibility_threshold: int = 10) -> None:
+        af = data.prefix.apply(lambda p: ipaddress.ip_network(p).version)
+        assert af.nunique() == 1
+        length = 128 if af.unique()[0] == 6 else 32
+
+        self.trie = pytricia.PyTricia(length)
+        data[data.seen_by_peers >= visibility_threshold].apply(
+            self.__build_trie, axis=1
+        )
+
+    def __build_trie(self, row: Series) -> None:
+        # pytricia: has_key searches for exact match, in for prefix match
+        # we want exact match.
+        if not self.trie.has_key(row.prefix):  # noqa: W601
+            # Add entry
+            self.trie[row.prefix] = set()
+
+        self.trie[row.prefix].add(
+            ExpandedRisEntry(
+                row.origin,
+                row.prefix,
+                row.seen_by_peers,
+                row.prefix_length,
+            )
+        )
+
+    def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
+        key = self.trie.get_key(prefix)
+
+        # gather all the keys first
+        # including exact match (!)
+        keys = set([key])
+        children = list(self.trie.children(key))
+        while children:
+            cur = children.pop()
+            keys.add(cur)
+
+            children.extend(self.trie.children(cur))
+
+        for key in keys:
+            # yield the all the elements
+            yield from self.trie[key]
+
+    def __contains__(self, prefix) -> bool:
+        return prefix in self.trie
+
+    def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
+        return set(self.lookup(prefix))

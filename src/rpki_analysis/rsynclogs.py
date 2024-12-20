@@ -3,6 +3,7 @@ Derived from the rsyncstats package [0], whose regex did not work with our rsync
 
 [0]: https://gitlab.com/resif/rsyncstats/-/tree/master
 """
+
 import datetime
 import logging
 import re
