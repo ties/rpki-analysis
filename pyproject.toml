@@ -1,41 +1,53 @@
-[tool.poetry]
+[project]
 name = "rpki-analysis"
 version = "0.1.0"
 description = ""
 authors = ["Ties de Kock <ties@tiesdekock.nl>"]
 readme = "README.md"
-packages = [{include = "rpki_analysis"}]
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp>=3.11.11",
+    "alive-progress>=3.2.0",
+    "altair>=5.5.0",
+    "click>=8.1.7",
+    "duckdb>=1.1.3",
+    "jupyterlab>=4.3.4",
+    "netaddr>=1.3.0",
+    "openpyxl>=3.1.5",
+    "pandas>=2.2.3",
+    "polars>=1.17.1",
+    "pyarrow>=18.1.0",
+    "pytricia>=1.0.2",
+    "xlwt>=1.3.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-jupyterlab = "^4.0.10"
-pandas = "^1.5.3"
-netaddr = "^0.8.0"
-altair = "^4.2.2"
-pytricia = "^1.0.2"
-aiohttp = "^3.9.2"
-pytest-asyncio = "^0.20.3"
-alive-progress = "^3.1.5"
-click = "^8.1.7"
-xlwt = "^1.3.0"
-openpyxl = "^3.1.2"
-matplotlib = "^3.8.2"
-psycopg2 = "^2.9.9"
-sqlalchemy = "^2.0.29"
-pyinterval = "^1.2.0"
-pyarrow = "^18.0.0"
-duckdb = "^1.1.3"
-polars = "^1.12.0"
+# [tool.poetry.dependencies]
+# jupyterlab = "^4.0.10"
+# pandas = "^1.5.3"
+# netaddr = "^0.8.0"
+# altair = "^4.2.2"
+# pytricia = "^1.0.2"
+# aiohttp = "^3.9.2"
+# pytest-asyncio = "^0.20.3"
+# alive-progress = "^3.1.5"
+# click = "^8.1.7"
+# xlwt = "^1.3.0"
+# openpyxl = "^3.1.2"
+# matplotlib = "^3.8.2"
+# psycopg2 = "^2.9.9"
+# sqlalchemy = "^2.0.29"
+# pyinterval = "^1.2.0"
+# pyarrow = "^18.0.0"
+# duckdb = "^1.1.3"
+# polars = "^1.17.1"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.4"
-pre-commit = "^2.21.0"
-black = "^22.12.0"
-flake8 = "^6.1.0"
-pylint = "^2.17.7"
-flake8-typing-imports = "^1.15.0"
-autoflake = "^2.2.1"
-ipdb = "^0.13.13"
+# [tool.poetry.group.dev.dependencies]
+# pytest = "^7.4.4"
+# black = "^22.12.0"
+# flake8 = "^6.1.0"
+# pylint = "^2.17.7"
+# flake8-typing-imports = "^1.15.0"
+# autoflake = "^2.2.1"
 
 
 [tool.black]
@@ -66,4 +78,10 @@ use_parentheses = true
 line_length = 88
 
 [settings]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.0",
+]
 # known_third_party = []
