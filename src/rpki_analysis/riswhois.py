@@ -1,10 +1,13 @@
 import ipaddress
 import logging
+from abc import abstractmethod
 from typing import Generator, NamedTuple, Set
 
 import pandas as pd
 import pytricia
 from pandas.core.series import Series
+
+from rpki_analysis.datastructures import BasePytriciaLookup, PrefixType
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.DEBUG)
@@ -38,27 +41,33 @@ def read_ris_dump(url: str) -> pd.DataFrame:
     return df
 
 
-class RisWhoisLookupTrie:
-    trie: pytricia.PyTricia
-
+class RisWhoisLookupTrie(BasePytriciaLookup[Set[ExpandedRisEntry]]):
     def __init__(self, data: pd.DataFrame, visibility_threshold: int = 10) -> None:
-        af = data.prefix.apply(lambda p: ipaddress.ip_network(p).version)
-        assert af.nunique() == 1
-        length = 128 if af.unique()[0] == 6 else 32
+        super().__init__(initial_value=set)
 
-        self.trie = pytricia.PyTricia(length)
-        data[data.seen_by_peers >= visibility_threshold].apply(
+        assert set(data.keys()) >= set(
+            [
+                "origin",
+                "prefix",
+                "seen_by_peers",
+                "prefix_length",
+            ]
+        )
+        data[(data.seen_by_peers >= visibility_threshold)].apply(
             self.__build_trie, axis=1
         )
 
-    def __build_trie(self, row: Series) -> None:
+    def __build_trie(self, row: pd.Series) -> None:
         # pytricia: has_key searches for exact match, in for prefix match
         # we want exact match.
-        if not self.trie.has_key(row.prefix):  # noqa: W601
-            # Add entry
-            self.trie[row.prefix] = set()
 
-        self.trie[row.prefix].add(
+        trie = self._trie(row.prefix)
+
+        if not trie.has_key(row.prefix):  # noqa: W601
+            # Add entry
+            trie[row.prefix] = set()
+
+        trie[row.prefix].add(
             ExpandedRisEntry(
                 row.origin,
                 row.prefix,
@@ -67,8 +76,12 @@ class RisWhoisLookupTrie:
             )
         )
 
+    @abstractmethod
+    def lookup(self, prefix: PrefixType) -> Generator[ExpandedRisEntry, None, None]:
+        pass
+
     def __contains__(self, prefix) -> bool:
-        return prefix in self.trie
+        return prefix in self._trie(prefix)
 
     def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
         return set(self.lookup(prefix))
@@ -76,10 +89,11 @@ class RisWhoisLookupTrie:
 
 class RisWhoisLookup(RisWhoisLookupTrie):
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
-        key = self.trie.get_key(prefix)
+        trie = self._trie(prefix)
+        key = trie.get_key(prefix)
         while key is not None:
-            yield from self.trie[key]
-            key = self.trie.parent(key)
+            yield from trie[key]
+            key = trie.parent(key)
 
 
 class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
@@ -87,21 +101,22 @@ class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
         resource = ipaddress.ip_network(prefix)
+        trie = self._trie(prefix)
 
-        keys = [self.trie.get_key(str(prefix))]
+        keys = [trie.get_key(str(prefix))]
         while keys:
             key = keys.pop()
             # only include overlapping children of the first less-specific matching `prefix`
             # i.e. the more specifics of the first matching less specific (everything below 0/0) are not included.
             child_keys = [
                 k
-                for k in self.trie.children(key)
+                for k in trie.children(key)
                 if ipaddress.ip_network(k).overlaps(resource)
             ]
             keys.extend(child_keys)
 
             # do not yield None elements
-            elem = self.trie[key]
+            elem = trie[key]
             if elem is not None:
                 yield from elem
 
@@ -111,25 +126,26 @@ class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
         resource = ipaddress.ip_network(prefix)
+        trie = self._trie(prefix)
 
-        keys = [self.trie.get_key(str(prefix))]
+        keys = [trie.get_key(str(prefix))]
         while keys:
             key = keys.pop()
             # do not include super-nets of the resource being looked up
             child_keys = [
                 k
-                for k in self.trie.children(key)
+                for k in trie.children(key)
                 if ipaddress.ip_network(k).overlaps(resource)
             ]
             keys.extend(child_keys)
 
             # do not yield None elements
-            elem = self.trie[key]
+            elem = trie[key]
             if elem is not None:
                 yield from elem
 
         # exact match + less specific
-        key = self.trie.get_key(prefix)
+        key = trie.get_key(prefix)
         while key is not None:
-            yield from self.trie[key]
-            key = self.trie.parent(key)
+            yield from trie[key]
+            key = trie.parent(key)
