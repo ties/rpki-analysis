@@ -1,9 +1,9 @@
 import re
+from typing import Optional, Pattern
+
 import pandas as pd
 
-from typing import NamedTuple, Optional, Pattern
-
-__ALL__ = ['group_clients', 'detailed_group_clients', 'RP_SOFTWARE']
+__ALL__ = ["group_clients", "detailed_group_clients", "RP_SOFTWARE"]
 
 
 class RP:
@@ -28,23 +28,26 @@ class RP:
             return match.group(1)
 
 
-RP_IMPLEMENTATIONS = frozenset([
-    RP('routinator', '.*reqwest.*', '<= 0.6.4'),
-    RP('routinator', 'Routinator(?:[/ ])(.*)'),
-    RP('validator3', '.*Jetty.*', 'unknown'),
-    RP('validator3', '.*Validator/(.*)'),
-    RP('fort', 'fort/(.*)'),
-    RP('octorpki', 'Cloudflare-(?:RPKI-RRDP/|RRDP-OctoRPKI)(.*) \(.*'),
-    RP('rpki-client', '(.*(?:rpki-client).*)'),
-    RP('rpki-prover', 'rpki-prover-(.*)'),
-    RP('rpki-monitoring', 'rpki-monitor (?:rpki-monitoring-)(.*)'),
-    # Shao Qinq, 2021-04-02, #hallway-chat on Discord
-    RP('rpstir2', '.*Chrome\/72.0.3626.109 Safari\/537.36(?: )?(RPSTIR2|)?.*'),
-    RP('blackbox-exporter', 'Go-http-client/(2.0)'),
-    RP('validator2', '.*Apache-HttpClient.*', 'unknown')
-])
+RP_IMPLEMENTATIONS = frozenset(
+    [
+        RP("routinator", r".*reqwest.*", "<= 0.6.4"),
+        RP("routinator", r"Routinator(?:[/ ])(.*)"),
+        RP("validator3", r".*Jetty.*", "unknown"),
+        RP("validator3", r".*Validator/(.*)"),
+        RP("fort", r"fort/(.*)"),
+        RP("octorpki", r"Cloudflare-(?:RPKI-RRDP/|RRDP-OctoRPKI)(.*) \(.*"),
+        RP("rpki-client", r"(.*(?:rpki-client).*)"),
+        RP("rpki-prover", r"rpki-prover-(.*)"),
+        RP("rpki-monitoring", r"rpki-monitor (?:rpki-monitoring-)(.*)"),
+        # Shao Qinq, 2021-04-02, #hallway-chat on Discord
+        RP("rpstir2", r".*Chrome\/72.0.3626.109 Safari\/537.36(?: )?(RPSTIR2|)?.*"),
+        RP("blackbox-exporter", r"Go-http-client/(2.0)"),
+        RP("validator2", r".*Apache-HttpClient.*", "unknown"),
+    ]
+)
 
 RP_SOFTWARE = frozenset(rp.name for rp in RP_IMPLEMENTATIONS)
+
 
 def group_clients(user_agent):
     for rp in RP_IMPLEMENTATIONS:

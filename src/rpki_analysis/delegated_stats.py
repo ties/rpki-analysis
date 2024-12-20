@@ -89,9 +89,9 @@ def read_delegated_extended_stats(f: TextIO) -> pd.DataFrame:
     )
 
     # Fix unsupported dates
-    df_delegated_extended.loc[
-        df_delegated_extended.date == "00000000", "date"
-    ] = "19700101"
+    df_delegated_extended.loc[df_delegated_extended.date == "00000000", "date"] = (
+        "19700101"
+    )
 
     df_delegated_extended.date = pd.to_datetime(
         df_delegated_extended.date, format="%Y%m%d", utc=True

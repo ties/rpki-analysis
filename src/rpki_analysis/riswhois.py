@@ -38,7 +38,7 @@ def read_ris_dump(url: str) -> pd.DataFrame:
     return df
 
 
-class RisWhoisLookup:
+class RisWhoisLookupTrie:
     trie: pytricia.PyTricia
 
     def __init__(self, data: pd.DataFrame, visibility_threshold: int = 10) -> None:
@@ -67,14 +67,65 @@ class RisWhoisLookup:
             )
         )
 
+    def __contains__(self, prefix) -> bool:
+        return prefix in self.trie
+
+    def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
+        return set(self.lookup(prefix))
+
+
+class RisWhoisLookup(RisWhoisLookupTrie):
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
         key = self.trie.get_key(prefix)
         while key is not None:
             yield from self.trie[key]
             key = self.trie.parent(key)
 
-    def __contains__(self, prefix) -> bool:
-        return prefix in self.trie
 
-    def __getitem__(self, prefix) -> Set[ExpandedRisEntry]:
-        return set(self.lookup(prefix))
+class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
+    """Lookup more or equally specific elements."""
+
+    def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
+        key = self.trie.get_key(prefix)
+
+        # gather all the keys first
+        # including exact match (!)
+        keys = set([key])
+        children = list(self.trie.children(key))
+        while children:
+            cur = children.pop()
+            keys.add(cur)
+
+            children.extend(self.trie.children(cur))
+
+        for key in keys:
+            # yield the all the elements
+            yield from self.trie[key]
+
+
+class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
+    """Lookup more or equally specific elements."""
+
+    def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
+        key = self.trie.get_key(prefix)
+
+        # gather all the keys first
+        keys = set()
+
+        # exact match + less specific
+        cur_key = self.trie.get_key(prefix)
+        while cur_key is not None:
+            keys.add(cur_key)
+            cur_key = self.trie.parent(cur_key)
+
+        # more specific
+        children = list(self.trie.children(key))
+        while children:
+            cur = children.pop()
+            keys.add(cur)
+
+            children.extend(self.trie.children(cur))
+
+        for key in keys:
+            # yield the all the elements
+            yield from self.trie[key]
