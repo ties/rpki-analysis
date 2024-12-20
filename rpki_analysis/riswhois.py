@@ -17,7 +17,6 @@ class ExpandedRisEntry(NamedTuple):
     prefix: str
     seen_by_peers: int
     prefix_length: int
-    roa_validity: str
 
 
 def read_ris_dump(url: str) -> pd.DataFrame:
@@ -27,7 +26,7 @@ def read_ris_dump(url: str) -> pd.DataFrame:
     )
 
     if df.origin.str.startswith("{").any():
-        LOG.error(
+        LOG.warning(
             "RIS dump contains row(s) with AS_SET! These will never be RPKI valid (https://tools.ietf.org/html/rfc6907#section-7.1.8)"
         )
     # select the rows that do not have the '%' prefix
@@ -65,7 +64,6 @@ class RisWhoisLookup:
                 row.prefix,
                 row.seen_by_peers,
                 row.prefix_length,
-                row.roa_validity,
             )
         )
 
