@@ -47,6 +47,10 @@ def test_riswhois_lookup(df_v4) -> None:
     # when you look up a less specific, a more specific is not present
     assert AS_3333_193_0_0_0_21 not in lookup["193.0.0.0/16"]
 
+    # When you look up a missing entry, you only get default routes.
+    res = [(r.origin, r.prefix) for r in lookup["127.0.0.0/8"]]
+    assert all(r[1] == "0.0.0.0/0" for r in res)
+
 
 def test_riswhois_lookup_more_specific(df_v4) -> None:
     lookup = RisWhoisLookupMoreSpecific(df_v4)
@@ -56,6 +60,10 @@ def test_riswhois_lookup_more_specific(df_v4) -> None:
     assert ("25152", "193.0.14.0/23") in res
     assert ("25152", "193.0.14.0/24") in res
     assert ("25152", "193.0.15.0/24") in res
+
+    # When you look up a missing entry, you get an empty result.
+    # i.e. the more specifics of the first matching less specific (everything below 0/0) are not included.
+    res = lookup["127.0.0.0/8"] == set()
 
 
 def test_riswhois_lookup_more_less_specific(df_v4) -> None:
@@ -80,3 +88,7 @@ def test_riswhois_lookup_more_less_specific(df_v4) -> None:
     assert AS_3333_193_0_0_0_21 in lookup["193.0.0.0/24"]
     # lookup an exact match
     assert AS_3333_193_0_0_0_21 in lookup["193.0.0.0/21"]
+
+    # When you look up a missing entry, you only get default routes.
+    res = [(r.origin, r.prefix) for r in lookup["127.0.0.0/8"]]
+    assert all(r[1] == "0.0.0.0/0" for r in res)

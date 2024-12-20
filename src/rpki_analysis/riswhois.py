@@ -86,46 +86,50 @@ class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
     """Lookup more or equally specific elements."""
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
-        key = self.trie.get_key(prefix)
+        resource = ipaddress.ip_network(prefix)
 
-        # gather all the keys first
-        # including exact match (!)
-        keys = set([key])
-        children = list(self.trie.children(key))
-        while children:
-            cur = children.pop()
-            keys.add(cur)
+        keys = [self.trie.get_key(str(prefix))]
+        while keys:
+            key = keys.pop()
+            # only include overlapping children of the first less-specific matching `prefix`
+            # i.e. the more specifics of the first matching less specific (everything below 0/0) are not included.
+            child_keys = [
+                k
+                for k in self.trie.children(key)
+                if ipaddress.ip_network(k).overlaps(resource)
+            ]
+            keys.extend(child_keys)
 
-            children.extend(self.trie.children(cur))
-
-        for key in keys:
-            # yield the all the elements
-            yield from self.trie[key]
+            # do not yield None elements
+            elem = self.trie[key]
+            if elem is not None:
+                yield from elem
 
 
 class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
     """Lookup more or equally specific elements."""
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
-        key = self.trie.get_key(prefix)
+        resource = ipaddress.ip_network(prefix)
 
-        # gather all the keys first
-        keys = set()
+        keys = [self.trie.get_key(str(prefix))]
+        while keys:
+            key = keys.pop()
+            # do not include super-nets of the resource being looked up
+            child_keys = [
+                k
+                for k in self.trie.children(key)
+                if ipaddress.ip_network(k).overlaps(resource)
+            ]
+            keys.extend(child_keys)
+
+            # do not yield None elements
+            elem = self.trie[key]
+            if elem is not None:
+                yield from elem
 
         # exact match + less specific
-        cur_key = self.trie.get_key(prefix)
-        while cur_key is not None:
-            keys.add(cur_key)
-            cur_key = self.trie.parent(cur_key)
-
-        # more specific
-        children = list(self.trie.children(key))
-        while children:
-            cur = children.pop()
-            keys.add(cur)
-
-            children.extend(self.trie.children(cur))
-
-        for key in keys:
-            # yield the all the elements
+        key = self.trie.get_key(prefix)
+        while key is not None:
             yield from self.trie[key]
+            key = self.trie.parent(key)
