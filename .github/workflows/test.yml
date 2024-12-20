@@ -20,4 +20,4 @@ jobs:
 
       - name: "Run tests"
         run: |
-          uv run pytest -n auto
+          uv run pytest -n auto --cov=rpki_analysis --cov-report xml:coverage.xml

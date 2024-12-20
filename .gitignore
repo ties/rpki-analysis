@@ -7,3 +7,4 @@ rpki-*Z
 rpki-*.tgz
 workbooks/.tmp/
 *.parquet
+.coverage
