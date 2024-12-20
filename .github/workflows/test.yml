@@ -20,4 +20,10 @@ jobs:
 
       - name: "Run tests"
         run: |
-          uv run pytest -n auto --cov=rpki_analysis --cov-report xml:coverage.xml
+          uv run pytest -n auto --junitxml=pytest.xml --cov-branch --cov=rpki_analysis --cov-report xml:coverage.xml
+
+      - name: Coverage coverage coverage report 
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+          junitxml-path: ./pytest.xml
