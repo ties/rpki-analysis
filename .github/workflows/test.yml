@@ -1,0 +1,35 @@
+name: Test
+
+on: [push]
+
+permissions:
+  checks: write
+  pull-requests: write
+  # for comment
+  contents: write
+
+jobs:
+  uv-example:
+    name: python
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: "Run tests"
+        run: |
+          uv run pytest -n auto --junitxml=pytest.xml --cov-branch --cov=rpki_analysis --cov-report xml:coverage.xml
+
+      - name: Coverage coverage coverage report 
+        uses: MishaKav/pytest-coverage-comment@v1.1.9
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+          junitxml-path: ./pytest.xml
