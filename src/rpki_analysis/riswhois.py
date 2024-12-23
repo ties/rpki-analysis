@@ -107,13 +107,12 @@ class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
         keys = [trie.get_key(str(prefix))]
         while keys:
             key = keys.pop()
-            # only include overlapping children of the first less-specific matching `prefix`
-            # i.e. the more specifics of the first matching less specific (everything below 0/0) are not included.
-            child_keys = [
-                k
-                for k in trie.children(key)
-                if resource.issuperset(netaddr.IPNetwork(k))
-            ]
+            # Do not include children of elements that are not in the resource
+            # (it would be a less specific).
+            if not resource.issuperset(netaddr.IPSet(netaddr.IPNetwork(key))):
+                continue
+
+            child_keys = list(trie.children(key))
             keys.extend(child_keys)
 
             # do not yield None elements
@@ -133,12 +132,12 @@ class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
         # Gather the more specifics
         while keys:
             key = keys.pop()
-            # We want to exclude _any_ less specific.
-            child_keys = [
-                k
-                for k in trie.children(key)
-                if resource.issuperset(netaddr.IPSet(netaddr.IPNetwork(k)))
-            ]
+            # Do not include children of elements that are not in the resource
+            # (it would be a less specific).
+            if not resource.issuperset(netaddr.IPSet(netaddr.IPNetwork(key))):
+                continue
+
+            child_keys = list(trie.children(key))
             keys.extend(child_keys)
 
             # do not yield None elements
