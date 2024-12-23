@@ -3,6 +3,7 @@ import logging
 from abc import abstractmethod
 from typing import Generator, NamedTuple, Set
 
+import netaddr
 import pandas as pd
 import pytricia
 from pandas.core.series import Series
@@ -100,19 +101,18 @@ class RisWhoisLookupMoreSpecific(RisWhoisLookupTrie):
     """Lookup more or equally specific elements."""
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
-        resource = ipaddress.ip_network(prefix)
+        resource = netaddr.IPSet(netaddr.IPNetwork(prefix))
         trie = self._trie(prefix)
 
         keys = [trie.get_key(str(prefix))]
         while keys:
             key = keys.pop()
-            # only include overlapping children of the first less-specific matching `prefix`
-            # i.e. the more specifics of the first matching less specific (everything below 0/0) are not included.
-            child_keys = [
-                k
-                for k in trie.children(key)
-                if ipaddress.ip_network(k).overlaps(resource)
-            ]
+            # Do not include children of elements that are not in the resource
+            # (it would be a less specific).
+            if not resource.issuperset(netaddr.IPSet(netaddr.IPNetwork(key))):
+                continue
+
+            child_keys = list(trie.children(key))
             keys.extend(child_keys)
 
             # do not yield None elements
@@ -125,18 +125,19 @@ class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
     """Lookup more or equally specific elements."""
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
-        resource = ipaddress.ip_network(prefix)
+        resource = netaddr.IPSet(netaddr.IPNetwork(prefix))
         trie = self._trie(prefix)
 
         keys = [trie.get_key(str(prefix))]
+        # Gather the more specifics
         while keys:
             key = keys.pop()
-            # do not include super-nets of the resource being looked up
-            child_keys = [
-                k
-                for k in trie.children(key)
-                if ipaddress.ip_network(k).overlaps(resource)
-            ]
+            # Do not include children of elements that are not in the resource
+            # (it would be a less specific).
+            if not resource.issuperset(netaddr.IPSet(netaddr.IPNetwork(key))):
+                continue
+
+            child_keys = list(trie.children(key))
             keys.extend(child_keys)
 
             # do not yield None elements
@@ -145,7 +146,7 @@ class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
                 yield from elem
 
         # exact match + less specific
-        key = trie.get_key(prefix)
+        key = trie.get_key(str(prefix))
         while key is not None:
             yield from trie[key]
             key = trie.parent(key)
