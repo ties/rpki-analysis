@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import netaddr
 import pandas as pd
 import pytest
 
@@ -92,3 +93,9 @@ def test_riswhois_lookup_more_less_specific(df_v4) -> None:
     # When you look up a missing entry, you only get default routes.
     res = [(r.origin, r.prefix) for r in lookup["127.0.0.0/8"]]
     assert all(r[1] == "0.0.0.0/0" for r in res)
+
+
+def test_riswhois_lookup_netaddr_types(df_v4) -> None:
+    lookup = RisWhoisLookupMoreLessSpecific(df_v4)
+
+    assert len(lookup[netaddr.IPNetwork("193.0.0.0/21")]) >= 1

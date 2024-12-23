@@ -125,6 +125,7 @@ class RisWhoisLookupMoreLessSpecific(RisWhoisLookupTrie):
     """Lookup more or equally specific elements."""
 
     def lookup(self, prefix) -> Generator[ExpandedRisEntry, None, None]:
+        # We _could_ cannonicalise the prefix here, for example changing '::' to '::/128' by using str(IPNetwork(..))
         resource = netaddr.IPSet(netaddr.IPNetwork(prefix))
         trie = self._trie(prefix)
 
