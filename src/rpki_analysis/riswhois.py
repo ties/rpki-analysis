@@ -5,8 +5,6 @@ from typing import Generator, NamedTuple, Set
 
 import netaddr
 import pandas as pd
-import pytricia
-from pandas.core.series import Series
 
 from rpki_analysis.datastructures import BasePytriciaLookup, PrefixType
 

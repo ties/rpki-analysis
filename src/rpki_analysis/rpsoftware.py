@@ -1,8 +1,6 @@
 import re
 from typing import Optional, Pattern
 
-import pandas as pd
-
 __ALL__ = ["group_clients", "detailed_group_clients", "RP_SOFTWARE"]
 
 
