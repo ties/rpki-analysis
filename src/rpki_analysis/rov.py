@@ -5,7 +5,6 @@ from typing import Generator, Literal, NamedTuple, Optional, Protocol, Set, Unio
 import netaddr
 import pandas as pd
 import pytricia
-from pandas.core.series import Series
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.DEBUG)
