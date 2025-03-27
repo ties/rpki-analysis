@@ -31,11 +31,6 @@ dev = [
     "pytest-cov>=6.0.0",
 ]
 
-[build-system]
-requires = ["uv>=0.5,<0.7"]
-build-backend = "uv"
-
-
 [tool.black]
 target-version = ["py312"]
 include = '\.pyi?$'
