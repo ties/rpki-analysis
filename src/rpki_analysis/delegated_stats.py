@@ -7,6 +7,7 @@ from typing import Generator, List, TextIO, TypeVar
 import netaddr
 import pandas as pd
 import pytricia
+import polars as pl
 
 LOG = logging.getLogger(__name__)
 
@@ -53,10 +54,70 @@ def extract_resource(row) -> netaddr.IPNetwork | str:
         case "ipv6":
             return netaddr.IPNetwork(f"{row.raw_resource}/{row.length}")
         case "asn":
-            return row.raw_resource
+            if row.length == 1:
+                return row.raw_resource
+            else:
+                return f"{row.raw_resource}-{int(row.raw_resource) + row.length}"
         case _:
             raise ValueError()
 
+def normalized_delegated_extended_stats(f: TextIO) -> pl.DataFrame:
+    """Parse a delegated stats file into a dataframe"""
+    df_delegated_extended = pl.read_csv(
+        f,
+        separator="|",
+        skip_rows=4,
+        has_header=False,
+        new_columns=[
+            "rir",
+            "country",
+            "afi",
+            "raw_resource",
+            "length",
+            "date",
+            "status",
+            "opaque_id",
+            "category",
+        ],
+        schema_overrides={
+            "rir": pl.Categorical,
+            "country": pl.Categorical,
+            "afi": pl.Categorical,
+            "raw_resource": pl.Utf8,
+            "length": pl.Int64,
+            "date": pl.Utf8,
+            "status": pl.Categorical,
+            "opaque_id": pl.Utf8,
+            "category": pl.Categorical,
+        },
+    )
+
+    # Fix unsupported dates
+    df_delegated_extended = df_delegated_extended.with_columns(
+        pl.when(pl.col("date") == "00000000")
+        .then(datetime.date(1970, 1, 1))
+        .otherwise(pl.col("date"))
+        .alias("date")
+    )
+
+    df_delegated_extended = df_delegated_extended.with_columns(
+        pl.col("date").str.strptime(pl.Date, "%Y%m%d", strict=False)
+    )
+    import ipdb; ipdb.set_trace()
+    # Create processed_resources column with the results from our function
+    df_with_resources = df_delegated_extended.with_columns(
+        pl.struct(["raw_resource", "length", "afi"])
+        .map_elements(lambda row: process_ip_resources(
+            row["raw_resource"], 
+            row["length"], 
+            row["afi"]
+        ), return_dtype=pl.List(pl.Utf8))
+        .alias("resources")
+    )
+    import ipdb; ipdb.set_trace()
+    
+    # Explode the dataframe to create one row per resource
+    return df_with_resources.explode("resources")
 
 def read_delegated_extended_stats(f: TextIO) -> pd.DataFrame:
     """Parse a delegated stats file into a dataframe"""
@@ -134,6 +195,33 @@ def read_delegated_stats(f: TextIO) -> pd.DataFrame:
     df_delegated.date = pd.to_datetime(df_delegated.date, format="%Y%m%d", utc=True)
     df_delegated["resource"] = df_delegated.apply(extract_resource, axis=1)
     return df_delegated
+
+
+def process_ip_resources(raw_resource: str, length: int, afi: str) -> List[str]:
+    """
+    Process raw_resource and length to return a list of IP resources.
+    
+    Args:
+        raw_resource: The raw resource value (e.g. IP address or ASN)
+        length: The length value
+        afi: Address family ("ipv4", "ipv6", or "asn")
+        
+    Returns:
+        List of processed IP resources in string format
+    """
+    match afi:
+        case "ipv4":
+            start = netaddr.IPAddress(raw_resource)
+            ip_range = netaddr.IPRange(start, start + (length - 1))
+            # Return a list of CIDR blocks that make up this range
+            return list(map(str, ip_range.cidrs()))
+        case "ipv6":
+            return [f"{raw_resource}/{length}"]
+        case "asn":
+            # For ASNs, just return as a single-element list
+            return [raw_resource]
+        case _:
+            raise ValueError(f"Unsupported address family: {afi}")
 
 
 class PytriciaLookup[V]:
