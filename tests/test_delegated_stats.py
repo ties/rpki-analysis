@@ -32,13 +32,22 @@ def test_normalized_delegated_extended_stats() -> None:
     with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
         text = io.StringIO(f.read())
         t0 = time.time()
-        normalized_delegated_extended_stats(text).collect()
+        lf = normalized_delegated_extended_stats(text)
+        df = lf.collect()
         t1 = time.time()
         print(f"Time taken: {t1 - t0:.2f} seconds")
-
-        import ipdb
-
-        ipdb.set_trace()
+        assert set(df.columns) == set(
+            [
+                "rir",
+                "country",
+                "afi",
+                "date",
+                "status",
+                "opaque_id",
+                "category",
+                "resources",
+            ]
+        )
 
 
 def test_delegated_stats_parsing() -> None:

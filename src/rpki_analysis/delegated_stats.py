@@ -234,14 +234,25 @@ def process_ip_resources(rows: pl.Series) -> pl.Series:
                 res.append([f"{raw_resource}/{length}"])
             case "asn":
                 # For ASNs, just return as a single-element list
-                if length == 0:
+                if length == 1:
                     res.append([raw_resource])
+                elif length < 10000:
+                    res.append(
+                        list(
+                            map(
+                                str,
+                                range(
+                                    int(raw_resource), int(raw_resource) + length + 1
+                                ),
+                            )
+                        )
+                    )
                 else:
                     res.append([f"{raw_resource}-{int(raw_resource) + length}"])
             case _:
                 raise ValueError(f"Unsupported address family: {afi}")
 
-    return pl.Series("resources", res, dtype=pl.List(pl.Utf8))
+    return pl.Series(res)
 
 
 class PytriciaLookup[V]:
