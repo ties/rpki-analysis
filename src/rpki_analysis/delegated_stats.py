@@ -2,12 +2,12 @@ import datetime
 import ipaddress
 import logging
 from dataclasses import dataclass
-from typing import Generator, List, TextIO, TypeVar
+from typing import Generator, List, TextIO, TypedDict, TypeVar
 
 import netaddr
 import pandas as pd
-import pytricia
 import polars as pl
+import pytricia
 
 LOG = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ def extract_resource(row) -> netaddr.IPNetwork | str:
         case _:
             raise ValueError()
 
+
 def normalized_delegated_extended_stats(f: TextIO) -> pl.DataFrame:
     """Parse a delegated stats file into a dataframe"""
     df_delegated_extended = pl.read_csv(
@@ -103,21 +104,17 @@ def normalized_delegated_extended_stats(f: TextIO) -> pl.DataFrame:
     df_delegated_extended = df_delegated_extended.with_columns(
         pl.col("date").str.strptime(pl.Date, "%Y%m%d", strict=False)
     )
-    import ipdb; ipdb.set_trace()
+
     # Create processed_resources column with the results from our function
     df_with_resources = df_delegated_extended.with_columns(
         pl.struct(["raw_resource", "length", "afi"])
-        .map_elements(lambda row: process_ip_resources(
-            row["raw_resource"], 
-            row["length"], 
-            row["afi"]
-        ), return_dtype=pl.List(pl.Utf8))
+        .map_elements(process_ip_resources, return_dtype=pl.List(pl.Utf8))
         .alias("resources")
-    )
-    import ipdb; ipdb.set_trace()
-    
+    ).drop(["raw_resource", "length"])
+
     # Explode the dataframe to create one row per resource
     return df_with_resources.explode("resources")
+
 
 def read_delegated_extended_stats(f: TextIO) -> pd.DataFrame:
     """Parse a delegated stats file into a dataframe"""
@@ -197,19 +194,32 @@ def read_delegated_stats(f: TextIO) -> pd.DataFrame:
     return df_delegated
 
 
-def process_ip_resources(raw_resource: str, length: int, afi: str) -> List[str]:
+class ResourceFields(TypedDict):
+    """
+    Columns of delegated stats that describe a resource
+    """
+
+    raw_resource: str
+    length: int
+    afi: str
+
+
+def process_ip_resources(struct: TypedDict) -> List[str]:
     """
     Process raw_resource and length to return a list of IP resources.
-    
+
     Args:
         raw_resource: The raw resource value (e.g. IP address or ASN)
         length: The length value
         afi: Address family ("ipv4", "ipv6", or "asn")
-        
+
     Returns:
         List of processed IP resources in string format
     """
-    match afi:
+    raw_resource = struct["raw_resource"]
+    length = struct["length"]
+
+    match struct["afi"]:
         case "ipv4":
             start = netaddr.IPAddress(raw_resource)
             ip_range = netaddr.IPRange(start, start + (length - 1))
@@ -221,7 +231,7 @@ def process_ip_resources(raw_resource: str, length: int, afi: str) -> List[str]:
             # For ASNs, just return as a single-element list
             return [raw_resource]
         case _:
-            raise ValueError(f"Unsupported address family: {afi}")
+            raise ValueError(f"Unsupported address family: {struct["afi"]}")
 
 
 class PytriciaLookup[V]:

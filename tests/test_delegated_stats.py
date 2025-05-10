@@ -25,14 +25,16 @@ def df_delext_stats() -> pd.DataFrame:
         data = io.StringIO(f.read())
 
         return read_delegated_extended_stats(data)
-    
+
 
 def test_normalized_delegated_extended_stats() -> None:
     with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
         text = io.StringIO(f.read())
-        df = normalized_delegated_extended_stats(text)
+        normalized_delegated_extended_stats(text)
 
-        breakpoint
+        import ipdb
+
+        ipdb.set_trace()
 
 
 def test_delegated_stats_parsing() -> None:
