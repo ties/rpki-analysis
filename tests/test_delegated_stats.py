@@ -2,6 +2,7 @@ import bz2
 import io
 import ipaddress
 import itertools
+import time
 from pathlib import Path
 
 import netaddr
@@ -30,7 +31,10 @@ def df_delext_stats() -> pd.DataFrame:
 def test_normalized_delegated_extended_stats() -> None:
     with bz2.open(Path(__file__).parent / "data/nro-delegated-stats.bz2", "rt") as f:
         text = io.StringIO(f.read())
-        normalized_delegated_extended_stats(text)
+        t0 = time.time()
+        normalized_delegated_extended_stats(text).collect()
+        t1 = time.time()
+        print(f"Time taken: {t1 - t0:.2f} seconds")
 
         import ipdb
 

@@ -108,7 +108,9 @@ def normalized_delegated_extended_stats(f: TextIO) -> pl.LazyFrame:
     # Create processed_resources column with the results from our function
     df_with_resources = df_delegated_extended.with_columns(
         pl.struct(["raw_resource", "length", "afi"])
-        .map_elements(process_ip_resources, return_dtype=pl.List(pl.Utf8))
+        .map_batches(
+            process_ip_resources, return_dtype=pl.List(pl.Utf8), is_elementwise=True
+        )
         .alias("resources")
     ).drop(["raw_resource", "length"])
 
@@ -204,7 +206,7 @@ class ResourceFields(TypedDict):
     afi: str
 
 
-def process_ip_resources(struct: TypedDict) -> List[str]:
+def process_ip_resources(rows: pl.Series) -> pl.Series:
     """
     Process raw_resource and length to return a list of IP resources.
 
@@ -216,22 +218,33 @@ def process_ip_resources(struct: TypedDict) -> List[str]:
     Returns:
         List of processed IP resources in string format
     """
-    raw_resource = struct["raw_resource"]
-    length = struct["length"]
+    res = []
+    assert list(map(lambda field: field.name, rows.dtype.fields)) == [
+        "raw_resource",
+        "length",
+        "afi",
+    ]
 
-    match struct["afi"]:
-        case "ipv4":
-            start = netaddr.IPAddress(raw_resource)
-            ip_range = netaddr.IPRange(start, start + (length - 1))
-            # Return a list of CIDR blocks that make up this range
-            return list(map(str, ip_range.cidrs()))
-        case "ipv6":
-            return [f"{raw_resource}/{length}"]
-        case "asn":
-            # For ASNs, just return as a single-element list
-            return [raw_resource]
-        case _:
-            raise ValueError(f"Unsupported address family: {struct["afi"]}")
+    for row in rows:
+        raw_resource, length, afi = row["raw_resource"], row["length"], row["afi"]
+        match afi:
+            case "ipv4":
+                start = netaddr.IPAddress(raw_resource)
+                ip_range = netaddr.IPRange(start, start + (length - 1))
+                # Return a list of CIDR blocks that make up this range
+                res.append(list(map(str, ip_range.cidrs())))
+            case "ipv6":
+                res.append([f"{raw_resource}/{length}"])
+            case "asn":
+                # For ASNs, just return as a single-element list
+                if length == 0:
+                    res.append([raw_resource])
+                else:
+                    res.append([f"{raw_resource}-{int(raw_resource) + length}"])
+            case _:
+                raise ValueError(f"Unsupported address family: {afi}")
+
+    return pl.Series("resources", res, dtype=pl.List(pl.Utf8))
 
 
 class PytriciaLookup[V]:
