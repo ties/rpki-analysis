@@ -62,9 +62,9 @@ def extract_resource(row) -> netaddr.IPNetwork | str:
             raise ValueError()
 
 
-def normalized_delegated_extended_stats(f: TextIO) -> pl.DataFrame:
+def normalized_delegated_extended_stats(f: TextIO) -> pl.LazyFrame:
     """Parse a delegated stats file into a dataframe"""
-    df_delegated_extended = pl.read_csv(
+    df_delegated_extended = pl.scan_csv(
         f,
         separator="|",
         skip_rows=4,
