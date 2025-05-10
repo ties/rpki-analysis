@@ -109,7 +109,7 @@ def normalized_delegated_extended_stats(f: TextIO) -> pl.LazyFrame:
     df_with_resources = df_delegated_extended.with_columns(
         pl.struct(["raw_resource", "length", "afi"])
         .map_batches(
-            process_ip_resources, return_dtype=pl.List(pl.Utf8), is_elementwise=True
+            process_ip_resources, is_elementwise=True, return_dtype=pl.List(pl.Utf8)
         )
         .alias("resources")
     ).drop(["raw_resource", "length"])
@@ -219,14 +219,11 @@ def process_ip_resources(rows: pl.Series) -> pl.Series:
         List of processed IP resources in string format
     """
     res = []
-    assert list(map(lambda field: field.name, rows.dtype.fields)) == [
-        "raw_resource",
-        "length",
-        "afi",
-    ]
+    raw_resources = rows.struct.field("raw_resource")
+    lengths = rows.struct.field("length")
+    afis = rows.struct.field("afi")
 
-    for row in rows:
-        raw_resource, length, afi = row["raw_resource"], row["length"], row["afi"]
+    for raw_resource, length, afi in zip(raw_resources, lengths, afis):
         match afi:
             case "ipv4":
                 start = netaddr.IPAddress(raw_resource)
