@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiohttp>=3.11.18",
-    "alive-progress>=3.2.0",
+    "alive-progress>=3.3.0",
     "altair>=6.0.0",
     "click>=8.1.7",
     "duckdb>=1.2.1",
